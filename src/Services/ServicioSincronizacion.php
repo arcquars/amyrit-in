@@ -17,7 +17,8 @@ class ServicioSincronizacion extends BaseSiatService
      * The WSDL service name.
      * @var string
      */
-    protected string $serviceName = 'ServicioSincronizacion';
+//    protected string $serviceName = 'ServicioSincronizacion';
+    protected string $serviceName = 'FacturacionSincronizacion';
 
     /**
      * Synchronizes the list of economic activities (CAEB).
@@ -37,8 +38,10 @@ class ServicioSincronizacion extends BaseSiatService
                 'codigoSistema'    => $this->config->codigoSistema,
                 'nit'              => $this->config->nit,
                 'cuis'             => $this->config->cuis,
+                'codigoSucursal'   => 0,
                 'codigoPuntoVenta' => $request->codigoPuntoVenta,
                 'codigoAmbiente'   => $this->config->ambiente,
+                ''
             ]
         ];
 

@@ -8,61 +8,92 @@ namespace Amyrit\SiatBoliviaClient;
  */
 class SiatConfig
 {
-    public const AMBIENTE_PRUEBAS = 2;
-    public const AMBIENTE_PRODUCCION = 1;
+    // --- Ambientes ---
+    const AMBIENTE_PRODUCCION = 1;
+    const AMBIENTE_PRUEBAS    = 2;
 
-    public const MODALIDAD_ELECTRONICA_EN_LINEA = 1;
-    public const MODALIDAD_COMPUTARIZADA_EN_LINEA = 2;
+    // --- Modalidades ---
+    const MODALIDAD_ELECTRONICA_EN_LINEA = 1;
+    const MODALIDAD_COMPUTARIZADA_EN_LINEA = 2;
 
-    /**
-     * WSDL URLs for SIAT services.
-     * These are based on the official documentation from impuestos.gob.bo
-     */
-    protected const WSDL = [
-        self::AMBIENTE_PRUEBAS => [
-            'ServicioFacturacionSiat' => 'https://pilotosiatservicios.impuestos.gob.bo/v2/ServicioFacturacionSiat?wsdl',
-            'ServicioSincronizacion' => 'https://pilotosiatservicios.impuestos.gob.bo/v2/ServicioSincronizacion?wsdl',
-            'ServicioOperaciones' => 'https://pilotosiatservicios.impuestos.gob.bo/v2/ServicioOperaciones?wsdl',
-            // ... Add all other WSDLs
-        ],
-        self::AMBIENTE_PRODUCCION => [
-            'ServicioFacturacionSiat' => 'https://siatrest.impuestos.gob.bo/v2/ServicioFacturacionSiat?wsdl',
-            'ServicioSincronizacion' => 'https://siatrest.impuestos.gob.bo/v2/ServicioSincronizacion?wsdl',
-            'ServicioOperaciones' => 'https://siatrest.impuestos.gob.bo/v2/ServicioOperaciones?wsdl',
-            // ... Add all other WSDLs
-        ],
-    ];
+    // --- URLs Base ---
+    const URL_PRUEBAS    = 'https://pilotosiatservicios.impuestos.gob.bo/v2/';
+    const URL_PRODUCCION = 'https://siatservicios.impuestos.gob.bo/v2/';
+
+    // --- Propiedades de Configuración ---
+    public readonly string $codigoSistema;
+    public readonly int $nit;
+    public readonly string $apiKey;
+    public readonly int $ambiente;
+    public readonly int $modalidad;
+    public readonly int $codigoSucursal;
+    public readonly int $codigoPuntoVenta;
+    public readonly int $soapTimeout;
 
     /**
-     * @param string $codigoSistema System Code provided by SIAT.
-     * @param int $nit Your company's NIT.
-     * @param string $apiKey Your SIAT API Key (Token).
-     * @param int $modalidad Service Modality (e.g., MODALIDAD_ELECTRONICA_EN_LINEA).
-     * @param int $ambiente Environment (e.g., AMBIENTE_PRUEBAS).
-     * @param string|null $cuis CUIS code obtained from SIAT.
-     * @param string|null $cufd CUFD code obtained from SIAT.
-     * @param int $soapTimeout SOAP client timeout in seconds.
+     * The absolute path to the directory containing local .wsdl files.
+     * @var string
      */
-    public function __construct(
-        public readonly string $codigoSistema,
-        public readonly int $nit,
-        public readonly string $apiKey,
-        public readonly int $modalidad = self::MODALIDAD_ELECTRONICA_EN_LINEA,
-        public readonly int $ambiente = self::AMBIENTE_PRUEBAS,
-        public readonly ?string $cuis = null,
-        public readonly ?string $cufd = null,
-        public readonly int $soapTimeout = 5
-    ) {
+    public string $wsdlBasePath;
+
+    // --- Propiedades de Runtime (Credenciales dinámicas) ---
+    // Quitamos 'readonly' para poder establecerlos después de la inicialización.
+    public ?string $cuis = null;
+    public ?string $cufd = null;
+
+    /**
+     * @param array $config Array of configuration values.
+     * @throws \InvalidArgumentException
+     */
+    public function __construct(array $config)
+    {
+        // Asignación de credenciales estáticas
+        $this->codigoSistema    = $config['codigoSistema'] ?? throw new \InvalidArgumentException('Missing required config: codigoSistema');
+        $this->nit              = (int)($config['nit'] ?? throw new \InvalidArgumentException('Missing required config: nit'));
+        $this->apiKey           = $config['apiKey'] ?? throw new \InvalidArgumentException('Missing required config: apiKey');
+
+        // Configuración de entorno
+        $this->ambiente         = (int)($config['ambiente'] ?? self::AMBIENTE_PRUEBAS);
+        $this->modalidad        = (int)($config['modalidad'] ?? self::MODALIDAD_ELECTRONICA_EN_LINEA);
+        $this->codigoSucursal   = (int)($config['codigoSucursal'] ?? 0);
+        $this->codigoPuntoVenta = (int)($config['codigoPuntoVenta'] ?? 0);
+
+        // Configuración técnica
+        $this->soapTimeout = (int)($config['soapTimeout'] ?? 5);
+
+        // Configuración de WSDLs locales
+        $this->wsdlBasePath = $config['wsdlBasePath']
+            ?? dirname(__DIR__) . '/wsdls/'; // Asume que 'SiatConfig.php' está en 'src/'
+        $this->wsdlBasePath = rtrim($this->wsdlBasePath, '/') . '/';
+
+        // Asignación de credenciales dinámicas (si se proveen)
+        $this->cuis = $config['cuis'] ?? null;
+        $this->cufd = $config['cufd'] ?? null;
     }
 
     /**
-     * Get the WSDL URL for a specific service.
+     * Gets the full, absolute file path for a specific service WSDL.
      *
-     * @param string $serviceClassName (e.g., 'ServicioFacturacionSiat')
-     * @return string|null
+     * @param string $serviceName (e.g., "ServicioSincronizacion")
+     * @return string
      */
-    public function getWsdlUrl(string $serviceClassName): ?string
+    public function getWsdlPath(string $serviceName): string
     {
-        return self::WSDL[$this->ambiente][$serviceClassName] ?? null;
+        return $this->wsdlBasePath . $serviceName . '.wsdl';
+    }
+
+    /**
+     * Gets the real service endpoint URL for SoapClient::__setLocation
+     *
+     * @param string $serviceName
+     * @return string
+     */
+    public function getEndpointUrl(string $serviceName): string
+    {
+        $baseUrl = ($this->ambiente == self::AMBIENTE_PRODUCCION)
+            ? self::URL_PRODUCCION
+            : self::URL_PRUEBAS;
+
+        return $baseUrl . $serviceName;
     }
 }

@@ -37,26 +37,36 @@ class SoapClientFactory
             return $this->clientCache[$serviceName];
         }
 
-        $wsdlUrl = $this->config->getWsdlUrl($serviceName);
-        if (!$wsdlUrl) {
-            throw new SiatException("WSDL URL for service '$serviceName' not found in configuration.");
+        // --- CAMBIO: Obtener la ruta del archivo local ---
+        $wsdlPath = $this->config->getWsdlPath($serviceName);
+
+        if (!file_exists($wsdlPath)) {
+            throw new SiatException("WSDL file not found at '$wsdlPath'. Please download it.");
         }
 
         try {
-            $client = new SoapClient($wsdlUrl, [
+            $options = [
                 'stream_context' => stream_context_create([
                     'http' => [
-                        'header' => "apikey: {$this->config->apiKey}",
+                        'header' => "apikey: TokenApi {$this->config->apiKey}",
                         'timeout' => $this->config->soapTimeout,
                     ]
                 ]),
                 'cache_wsdl'   => WSDL_CACHE_NONE,
                 'compression'  => SOAP_COMPRESSION_ACCEPT | SOAP_COMPRESSION_GZIP | SOAP_COMPRESSION_DEFLATE,
                 'encoding'     => 'UTF-8',
-                'soap_version' => SOAP_1_1, // SIAT uses SOAP 1.1
-                'exceptions'   => true, // Throw SoapFault exceptions
-                'trace'        => $this->config->ambiente === SiatConfig::AMBIENTE_PRUEBAS, // Enable trace only in tests
-            ]);
+                'soap_version' => SOAP_1_1,
+                'exceptions'   => true,
+                'trace'        => true,
+            ];
+
+            // --- CAMBIO: Apuntar al archivo local ---
+            $client = new SoapClient($wsdlPath, $options);
+
+            // --- NUEVO: Sobrescribir la URL del endpoint ---
+            // El WSDL local le dirá a SoapClient que envíe peticiones a 'localhost'.
+            // Debemos corregir esto para que apunte al servidor real de SIAT.
+            $client->__setLocation($this->config->getEndpointUrl($serviceName));
 
             $this->clientCache[$serviceName] = $client;
             return $client;

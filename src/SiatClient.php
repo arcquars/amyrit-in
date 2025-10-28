@@ -3,7 +3,9 @@
 namespace Amyrit\SiatBoliviaClient;
 
 use Amyrit\SiatBoliviaClient\Internal\SoapClientFactory;
+use Amyrit\SiatBoliviaClient\Services\ServicioCodigos;
 use Amyrit\SiatBoliviaClient\Services\ServicioFacturacion;
+use Amyrit\SiatBoliviaClient\Services\ServicioOperaciones;
 use Amyrit\SiatBoliviaClient\Services\ServicioSincronizacion;
 // ... Import other services
 
@@ -45,8 +47,14 @@ class SiatClient
         return new ServicioSincronizacion($this->config, $this->clientFactory);
     }
 
-    // ... Add factory methods for all other services
-    // public function operaciones(): ServicioOperaciones
-    // { ... }
+    public function operaciones(): ServicioOperaciones
+    {
+         return new ServicioOperaciones($this->config, $this->clientFactory);
+    }
+
+    public function codigos(): ServicioCodigos
+    {
+        return new ServicioCodigos($this->config, $this->clientFactory);
+    }
 }
 
